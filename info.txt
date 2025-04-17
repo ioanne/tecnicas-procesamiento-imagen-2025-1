@@ -1,0 +1,12 @@
+# Comando windows:
+".\env\Scripts\activate"
+
+
+PIP
+https://docs.python.org/es/3.13/installing/index.html
+
+
+
+# Crear entorno virtual
+python3 -m venv env
+
