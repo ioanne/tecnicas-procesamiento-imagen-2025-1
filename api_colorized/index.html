@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Color Replacer</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', sans-serif;
+                background-color: #f5f5f5;
+                color: #333;
+                margin: 0;
+                padding: 2rem;
+            }
+
+            h1,
+            h2 {
+                color: #222;
+            }
+
+            input[type='file'],
+            button {
+                font-size: 1rem;
+                padding: 0.5rem;
+                margin-top: 0.5rem;
+                margin-bottom: 1rem;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                background-color: white;
+            }
+
+            button {
+                background-color: #007bff;
+                color: white;
+                cursor: pointer;
+                transition: background-color 0.2s ease-in-out;
+            }
+
+            button:hover {
+                background-color: #0056b3;
+            }
+
+            input[type='color'] {
+                appearance: none;
+                -webkit-appearance: none;
+                border: none;
+                width: 50px;
+                height: 50px;
+                padding: 0;
+                border-radius: 6px;
+                cursor: pointer;
+                box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+                transition: box-shadow 0.2s ease-in-out;
+            }
+
+            input[type='color']:hover {
+                box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            }
+
+            #colorsContainer {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-bottom: 1rem;
+            }
+
+            .color-box {
+                width: 40px;
+                height: 40px;
+                border: 2px solid #ccc;
+                border-radius: 4px;
+                box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+                cursor: pointer;
+                transition: transform 0.2s ease-in-out;
+            }
+
+            .color-box:hover {
+                transform: scale(1.1);
+            }
+
+            .selected {
+                border: 3px solid #ff0000;
+            }
+
+            #replacementsList {
+                margin-top: 1rem;
+                padding: 0.5rem;
+                background-color: #fff;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                max-width: 400px;
+            }
+
+            .color-chip {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                border: 1px solid #333;
+                margin-right: 5px;
+                vertical-align: middle;
+                border-radius: 3px;
+            }
+
+            #replacementsList div {
+                margin-bottom: 0.5rem;
+            }
+
+            #resultImage {
+                max-width: 100%;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                margin-top: 1rem;
+            }
+
+            #downloadBtn {
+                padding: 0.6rem 1rem;
+                font-size: 1rem;
+                margin-top: 1rem;
+                border: none;
+                border-radius: 6px;
+                background-color: #28a745;
+                color: white;
+                cursor: pointer;
+            }
+
+            #downloadBtn:hover {
+                background-color: #1e7e34;
+            }
+
+            #selectedColorPreview {
+                width: 40px;
+                height: 40px;
+                border: 2px solid #000;
+                display: inline-block;
+                vertical-align: middle;
+                margin-left: 0.5rem;
+            }
+
+            #selectedColorValue {
+                font-weight: bold;
+                margin-left: 0.5rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Upload Image</h1>
+        <input type="file" id="imageInput" />
+        <button onclick="analyzeColors()">Detect Colors</button>
+        <div id="colorsContainer"></div>
+
+        <div style="margin-top: 1rem">
+            <label>Selected Color:</label>
+            <div id="selectedColorPreview"></div>
+            <span id="selectedColorValue"></span>
+        </div>
+
+        <h2>Replace Selected Color</h2>
+        <label>New Color:</label>
+        <input type="color" id="newColorPicker" />
+        <button onclick="addReplacement()">Add Replacement</button>
+        <div id="replacementsList"></div>
+
+        <button onclick="submitReplacement()">Apply Replacement</button>
+        <div>
+            <h2>Modified Image:</h2>
+            <img id="resultImage" />
+            <br />
+            <button id="downloadBtn" style="display: none">Download Result</button>
+        </div>
+
+        <script>
+            let selectedColor = null;
+            let replacements = [];
+
+            function analyzeColors() {
+                const fileInput = document.getElementById('imageInput');
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+
+                fetch('http://localhost:8000/colors?n_colors=10', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then((res) => res.json())
+                    .then((data) => {
+                        const container = document.getElementById('colorsContainer');
+                        container.innerHTML = '';
+                        data.detected_colors.forEach((color) => {
+                            const div = document.createElement('div');
+                            div.className = 'color-box';
+                            div.style.backgroundColor = color;
+                            div.dataset.hex = color;
+                            div.onclick = () => selectColor(div);
+                            container.appendChild(div);
+                        });
+                    })
+                    .catch((err) => alert('Error detecting colors: ' + err.message));
+            }
+
+            function selectColor(div) {
+                document.querySelectorAll('.color-box').forEach((el) => el.classList.remove('selected'));
+                div.classList.add('selected');
+                selectedColor = div.dataset.hex.trim().toLowerCase();
+
+                const picker = document.getElementById('newColorPicker');
+                if (/^#[0-9a-f]{6}$/.test(selectedColor)) {
+                    picker.value = selectedColor;
+                }
+
+                document.getElementById('selectedColorPreview').style.backgroundColor = selectedColor;
+                document.getElementById('selectedColorValue').innerText = selectedColor;
+            }
+
+            function hexToRgb(hex) {
+                const bigint = parseInt(hex.slice(1), 16);
+                return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+            }
+
+            function rgbToHex(rgb) {
+                return (
+                    '#' +
+                    rgb
+                        .map((c) => {
+                            const hex = c.toString(16);
+                            return hex.length === 1 ? '0' + hex : hex;
+                        })
+                        .join('')
+                );
+            }
+
+            function updateReplacementList() {
+                const list = document.getElementById('replacementsList');
+                list.innerHTML = '';
+                replacements.forEach((r) => {
+                    const originalHex = rgbToHex(r.original_color);
+                    const newHex = rgbToHex(r.new_color);
+
+                    const item = document.createElement('div');
+                    item.innerHTML = `
+            <span class="color-chip" style="background-color: ${originalHex};"></span>
+            →
+            <span class="color-chip" style="background-color: ${newHex};"></span>
+            ${originalHex} → ${newHex}
+        `;
+                    list.appendChild(item);
+                });
+            }
+
+            function addReplacement() {
+                if (!selectedColor) return;
+
+                const newColorHex = document.getElementById('newColorPicker').value;
+                const originalRGB = hexToRgb(selectedColor);
+                const newRGB = hexToRgb(newColorHex);
+
+                const isSame = JSON.stringify(originalRGB) === JSON.stringify(newRGB);
+                if (isSame) return; // no hacemos nada si no cambia el color
+
+                // Ver si ya está el color original en la lista
+                const index = replacements.findIndex((r) => JSON.stringify(r.original_color) === JSON.stringify(originalRGB));
+
+                if (index !== -1) {
+                    // Ya existe → pisamos el color nuevo
+                    replacements[index].new_color = newRGB;
+                    updateReplacementList(); // refrescar lista visual
+                } else {
+                    // Agregamos uno nuevo
+                    replacements.push({
+                        original_color: originalRGB,
+                        new_color: newRGB
+                    });
+                    updateReplacementList(); // refrescar lista visual
+                }
+            }
+
+            function submitReplacement() {
+                const fileInput = document.getElementById('imageInput');
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+
+                const payload = {
+                    replacements: replacements,
+                    tolerance: 0,
+                    filename: 'modified_image.png'
+                };
+                formData.append('replacements_json', JSON.stringify(payload));
+
+                fetch('http://localhost:8000/replace_colors', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then((res) => {
+                        if (!res.ok) throw new Error('Failed to process image');
+                        return res.blob();
+                    })
+                    .then((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        document.getElementById('resultImage').src = url;
+
+                        const downloadBtn = document.getElementById('downloadBtn');
+                        downloadBtn.style.display = 'inline-block';
+                        downloadBtn.onclick = () => {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'modified_image.png';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        };
+                    })
+                    .catch((err) => {
+                        alert('Error replacing colors: ' + err.message);
+                    });
+            }
+        </script>
+    </body>
+</html>
